@@ -44,8 +44,17 @@ class TestSession(models.Model):
     ]
 
     uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    user = models.ForeignKey(
+        "auth.User",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="test_sessions",
+    )
     language = models.CharField(max_length=2, default="uz")
-    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default="in_progress")
+    status = models.CharField(
+        max_length=15, choices=STATUS_CHOICES, default="in_progress"
+    )
 
     started_at = models.DateTimeField(auto_now_add=True)
     finished_at = models.DateTimeField(null=True, blank=True)
@@ -65,7 +74,9 @@ class TestSession(models.Model):
 
 
 class UserAnswer(models.Model):
-    session = models.ForeignKey(TestSession, related_name="answers", on_delete=models.CASCADE)
+    session = models.ForeignKey(
+        TestSession, related_name="answers", on_delete=models.CASCADE
+    )
     question = models.ForeignKey(Question, on_delete=models.PROTECT)
     selected_index = models.PositiveSmallIntegerField(null=True, blank=True)
     time_spent = models.PositiveIntegerField(default=0)
