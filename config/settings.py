@@ -1,30 +1,51 @@
 """
 Django settings for IQ Test Platform.
-Works locally (SQLite) and on Render (PostgreSQL) automatically.
+Works locally (SQLite) and on Railway (PostgreSQL) automatically.
 """
 from pathlib import Path
 from datetime import timedelta
+import os
 
 import dj_database_url
 from decouple import config
 
-# ──────────────────────── Paths ────────────────────────
+# ═══════════════════════════════════════════
+# PATHS
+# ═══════════════════════════════════════════
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# ──────────────────────── Security ────────────────────────
+# ═══════════════════════════════════════════
+# SECURITY
+# ═══════════════════════════════════════════
 SECRET_KEY = config("DJANGO_SECRET_KEY", default="dev-insecure-change-me")
-DEBUG = config("DEBUG", default=True, cast=bool)
+DEBUG = config("DEBUG", default=False, cast=bool)
 
+# ═══════════════════════════════════════════
+# ALLOWED HOSTS — CRITICAL
+# ═══════════════════════════════════════════
 ALLOWED_HOSTS = [
     h.strip()
     for h in config(
         "DJANGO_ALLOWED_HOSTS",
-        default="localhost,127.0.0.1,.onrender.com",
+        default="localhost,127.0.0.1,.up.railway.app,healthcheck.railway.app,.onrender.com",
     ).split(",")
     if h.strip()
 ]
 
-# ──────────────────────── Applications ────────────────────────
+# Auto-add Railway public domain (if available)
+if not DEBUG:
+    railway_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
+    if railway_domain and railway_domain not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(railway_domain)
+
+# Auto-add Railway private domain
+railway_private = os.environ.get("RAILWAY_PRIVATE_DOMAIN")
+if railway_private and railway_private not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(railway_private)
+
+# ═══════════════════════════════════════════
+# APPLICATIONS
+# ═══════════════════════════════════════════
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -41,11 +62,13 @@ INSTALLED_APPS = [
     "apps.testing",
 ]
 
-# ──────────────────────── Middleware ────────────────────────
+# ═══════════════════════════════════════════
+# MIDDLEWARE — ORDER MATTERS
+# ═══════════════════════════════════════════
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",
+    "corsheaders.middleware.CorsMiddleware",       # MUST be first
     "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # After security
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -56,7 +79,9 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "config.urls"
 
-# ──────────────────────── Templates ────────────────────────
+# ═══════════════════════════════════════════
+# TEMPLATES
+# ═══════════════════════════════════════════
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
@@ -76,15 +101,20 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
-# ──────────────────────── Database ────────────────────────
+# ═══════════════════════════════════════════
+# DATABASE
+# ═══════════════════════════════════════════
 DATABASES = {
     "default": dj_database_url.config(
         default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
         conn_max_age=600,
+        conn_health_checks=True,
     )
 }
 
-# ──────────────────────── Password validation ────────────────────────
+# ═══════════════════════════════════════════
+# PASSWORD VALIDATION
+# ═══════════════════════════════════════════
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
@@ -92,34 +122,56 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
-# ──────────────────────── i18n ────────────────────────
+# ═══════════════════════════════════════════
+# i18n
+# ═══════════════════════════════════════════
 LANGUAGE_CODE = "en"
 TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
 
-# ──────────────────────── Static files ────────────────────────
+# ═══════════════════════════════════════════
+# STATIC FILES
+# ═══════════════════════════════════════════
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-STORAGES = {
-    "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
-    },
-    "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
-    },
-}
+STATICFILES_DIRS = []
+STATIC_DIR = BASE_DIR / "static"
+if STATIC_DIR.exists():
+    STATICFILES_DIRS.append(STATIC_DIR)
+
+# Storage backend
+if DEBUG:
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+    }
+else:
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# ──────────────────────── DRF ────────────────────────
+# ═══════════════════════════════════════════
+# DJANGO REST FRAMEWORK
+# ═══════════════════════════════════════════
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": (
-        "rest_framework.permissions.AllowAny",       # ← Test anonim ishlashi uchun
+        "rest_framework.permissions.AllowAny",
     ),
     "DEFAULT_RENDERER_CLASSES": ("rest_framework.renderers.JSONRenderer",),
 }
@@ -129,24 +181,34 @@ SIMPLE_JWT = {
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
 }
 
-# ──────────────────────── CORS & CSRF ────────────────────────
-CORS_ALLOWED_ORIGINS = [
-    o.strip()
-    for o in config(
-        "CORS_ALLOWED_ORIGINS",
-        default="http://localhost:5173,http://127.0.0.1:5173,https://iq-test-frontend.onrender.com",
-    ).split(",")
-    if o.strip()
-]
+# ═══════════════════════════════════════════
+# CORS — AUTO CLEAN
+# ═══════════════════════════════════════════
+CORS_ALLOWED_ORIGINS = []
+_raw_cors = config(
+    "CORS_ALLOWED_ORIGINS",
+    default=(
+        "http://localhost:5173,"
+        "http://127.0.0.1:5173"
+    ),
+)
+for origin in _raw_cors.split(","):
+    origin = origin.strip().rstrip("/")   # Auto-remove trailing slash
+    if origin:
+        CORS_ALLOWED_ORIGINS.append(origin)
 
-CSRF_TRUSTED_ORIGINS = [
-    o.strip()
-    for o in config(
-        "CSRF_TRUSTED_ORIGINS",
-        default="http://localhost:5173,https://iq-test-frontend.onrender.com,https://backendiqtest.onrender.com",
-    ).split(",")
-    if o.strip()
-]
+# ═══════════════════════════════════════════
+# CSRF — AUTO CLEAN
+# ═══════════════════════════════════════════
+CSRF_TRUSTED_ORIGINS = []
+_raw_csrf = config(
+    "CSRF_TRUSTED_ORIGINS",
+    default="http://localhost:5173",
+)
+for origin in _raw_csrf.split(","):
+    origin = origin.strip().rstrip("/")
+    if origin:
+        CSRF_TRUSTED_ORIGINS.append(origin)
 
 CORS_ALLOW_HEADERS = [
     "accept",
@@ -159,14 +221,19 @@ CORS_ALLOW_HEADERS = [
 
 CORS_ALLOW_CREDENTIALS = True
 
-# ──────────────────────── Security (prod only) ────────────────────────
+# ═══════════════════════════════════════════
+# SECURITY — PRODUCTION
+# ═══════════════════════════════════════════
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-    SECURE_SSL_REDIRECT = False             # Render allaqachon HTTPS
+    SECURE_SSL_REDIRECT = False        # Railway handles HTTPS
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 
-
-# ──────────────────────── Payment ────────────────────────
+# ═══════════════════════════════════════════
+# PAYMENT
+# ═══════════════════════════════════════════
 ADMIN_PAYMENT_ACCOUNT = config("ADMIN_PAYMENT_ACCOUNT", default="")
 ADMIN_PAYMENT_HOLDER = config("ADMIN_PAYMENT_HOLDER", default="CogniTest")

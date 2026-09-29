@@ -1,0 +1,21 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block title %}{{ title }} | CogniTest Admin{% endblock %}
+
+{% block branding %}
+<h1 id="site-name">
+  <a href="{% url 'admin:index' %}" style="display:flex;align-items:center;gap:10px;font-size:18px;">
+    <img src="{% static 'images/logo.png' %}" alt="CogniTest"
+         style="height:36px;width:36px;border-radius:8px;object-fit:contain;" />
+    <span>CogniTest Boshqaruv</span>
+  </a>
+</h1>
+{% endblock %}
+
+{% block extrastyle %}
+<link rel="icon" href="{% static 'images/favicon.ico' %}" type="image/x-icon">
+<link rel="stylesheet" href="{% static 'admin/custom.css' %}">
+{% endblock %}
+
+{% block nav-global %}{% endblock %}
