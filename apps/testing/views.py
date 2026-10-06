@@ -7,46 +7,148 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Question, TestSession
+from .models import Question, TestSession, TestCategory
 from .serializers import (
     LocalizedQuestionSerializer,
     SubmitTestSerializer,
     SessionResultSerializer,
+    TestCategorySerializer,
 )
 from .scoring import compute_result
 
 
-# ─────────────────── TEST START ───────────────────
+# ═══════════════════════════════════════════
+# TEST CATEGORIES — 4 ta test turi
+# ═══════════════════════════════════════════
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def test_categories(request):
+    """Barcha test turlarini olish."""
+    cats = TestCategory.objects.filter(is_active=True)
+    serializer = TestCategorySerializer(cats, many=True)
+    return Response(serializer.data)
+
+
+# ═══════════════════════════════════════════
+# TEST START
+# ═══════════════════════════════════════════
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def start_test(request):
-    """Test boshlash. Login talab qilinmaydi."""
-    questions = Question.objects.filter(is_active=True).order_by("order")[:40]
+    category_code = request.data.get("category", "iq")
+
+    # ═══════════════════════════════════════════
+    # ARALASH TEST
+    # ═══════════════════════════════════════════
+    if category_code == "mixed":
+        import random
+
+        # Har bir turdan nechta savol olamiz
+        per_category = {
+            "iq": 10,
+            "math": 10,
+            "english": 10,
+            "native": 10,
+        }
+
+        all_questions = []
+        for cat_code, count in per_category.items():
+            try:
+                test_cat = TestCategory.objects.get(code=cat_code, is_active=True)
+                qs = list(
+                    Question.objects.filter(test_type=test_cat, is_active=True)
+                )
+                random.shuffle(qs)
+                all_questions.extend(qs[:count])
+            except TestCategory.DoesNotExist:
+                continue
+
+        # Aralashtirish
+        random.shuffle(all_questions)
+
+        if not all_questions:
+            return Response(
+                {"detail": "Aralash test uchun savollar topilmadi."},
+                status=404,
+            )
+
+        # Aralash test uchun maxsus kategoriya (vaqtincha)
+        session = TestSession.objects.create(
+            language="uz",
+            user=request.user if request.user.is_authenticated else None,
+            test_category=None,  # Aralash — maxsus kategoriya yo'q
+        )
+
+        serializer = LocalizedQuestionSerializer(all_questions, many=True)
+
+        return Response(
+            {
+                "session_uuid": str(session.uuid),
+                "language": "uz",
+                "category": {
+                    "code": "mixed",
+                    "name_uz": "Aralash Test",
+                    "name_en": "Mixed Test",
+                    "name_ru": "Смешанный тест",
+                    "description_uz": "Barcha turdagi aralash savollar",
+                    "icon": "Sparkles",
+                    "color": "rose",
+                    "duration_seconds": 40 * 60,
+                },
+                "duration_seconds": 40 * 60,
+                "total_questions": len(serializer.data),
+                "questions": serializer.data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+    # ═══════════════════════════════════════════
+    # ODDIY TEST (IQ, Matematika, Ingliz, Ona tili)
+    # ═══════════════════════════════════════════
+    try:
+        test_cat = TestCategory.objects.get(code=category_code, is_active=True)
+    except TestCategory.DoesNotExist:
+        return Response(
+            {"detail": f"Test turi '{category_code}' topilmadi."},
+            status=404,
+        )
+
+    questions = Question.objects.filter(
+        test_type=test_cat, is_active=True
+    ).order_by("order")[:40]
+
+    if not questions.exists():
+        return Response(
+            {"detail": f"'{test_cat.name_uz}' uchun savollar topilmadi."},
+            status=404,
+        )
 
     session = TestSession.objects.create(
         language="uz",
         user=request.user if request.user.is_authenticated else None,
+        test_category=test_cat,
     )
+
     serializer = LocalizedQuestionSerializer(questions, many=True)
 
     return Response(
         {
             "session_uuid": str(session.uuid),
             "language": "uz",
-            "duration_seconds": 40 * 60,
+            "category": TestCategorySerializer(test_cat).data,
+            "duration_seconds": test_cat.duration_seconds,
             "total_questions": len(serializer.data),
             "questions": serializer.data,
-            "message": "Test session created. Good luck!",
         },
         status=status.HTTP_201_CREATED,
     )
 
-
-# ─────────────────── TEST SUBMIT ───────────────────
+# ═══════════════════════════════════════════
+# TEST SUBMIT
+# ═══════════════════════════════════════════
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def submit_test(request):
-    """Javoblarni yuborish. Login talab qilinmaydi."""
     serializer = SubmitTestSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     data = serializer.validated_data
@@ -67,122 +169,28 @@ def submit_test(request):
     session.percentile = result["percentile"]
     session.category_breakdown = result["category_breakdown"]
     session.duration_seconds = result["duration_seconds"]
+    session.correct_count = result["correct_count"]
+    session.wrong_count = result["wrong_count"]
+    session.unanswered_count = result["unanswered_count"]
+    session.total_questions = result["total_questions"]
     session.status = "completed"
     session.finished_at = now()
     session.save()
 
-    return Response(
-        {
-            "message": "Test completed successfully.",
-            "result": SessionResultSerializer(session).data,
-        }
-    )
+    return Response({
+        "message": "Test completed successfully.",
+        "result": SessionResultSerializer(session).data,
+    })
 
 
-# ─────────────────── RESULTS ───────────────────
+# ═══════════════════════════════════════════
+# GET RESULTS
+# ═══════════════════════════════════════════
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def get_results(request, uuid):
-    """Natijani olish."""
     try:
         session = TestSession.objects.get(uuid=uuid)
     except TestSession.DoesNotExist:
         return Response({"detail": "Session not found."}, status=404)
     return Response(SessionResultSerializer(session).data)
-
-
-# ─────────────────── ISSUE CERTIFICATE ───────────────────
-@api_view(["POST"])
-@permission_classes([IsAuthenticated])
-def issue_certificate(request, uuid):
-    """
-    Sertifikat berish. Faqat Pro/Ultimate foydalanuvchilar uchun.
-    Profilida F.I.SH, pasport, telefon bo'lishi kerak.
-    """
-    profile = request.user.profile
-
-    # ─── Tarif tekshiruvi ───
-    if not profile.is_pro and not profile.is_ultimate:
-        return Response(
-            {
-                "detail": "Sertifikat olish uchun Pro yoki Ultimate tarifga o‘tish kerak.",
-                "requires_subscription": True,
-            },
-            status=403,
-        )
-
-    try:
-        session = TestSession.objects.get(uuid=uuid, user=request.user)
-    except TestSession.DoesNotExist:
-        return Response({"detail": "Sessiya topilmadi."}, status=404)
-
-    if session.status != "completed":
-        return Response({"detail": "Test tugallanmagan."}, status=400)
-
-    if not profile.is_certificate_ready:
-        return Response(
-            {"detail": "Sertifikat uchun F.I.SH, pasport va telefon raqami kerak."},
-            status=400,
-        )
-
-    if not profile.certificate_uuid:
-        profile.certificate_uuid = uuid4()
-        profile.certificate_issued = True
-        profile.save()
-
-    profile.certificate_downloads += 1
-    profile.save()
-
-    return Response(
-        {
-            "certificate_uuid": str(profile.certificate_uuid),
-            "iq_score": session.iq_score,
-            "percentile": session.percentile,
-            "issued_at": timezone.now(),
-            "plan": profile.plan,
-        }
-    )
-
-
-# ─────────────────── VERIFY CERTIFICATE ─────────────────── ✅ YANGI
-@api_view(["GET"])
-@permission_classes([AllowAny])
-def verify_certificate(request, cert_uuid):
-    """
-    Sertifikat tekshiruvi. Login talab qilinmaydi.
-    Ommaviy — har kim sertifikat haqiqiyligini tekshirishi mumkin.
-    """
-    from apps.accounts.models import Profile
-
-    try:
-        profile = Profile.objects.get(certificate_uuid=cert_uuid)
-    except Profile.DoesNotExist:
-        return Response(
-            {"valid": False, "detail": "Sertifikat topilmadi."},
-            status=404,
-        )
-
-    if not profile.certificate_issued:
-        return Response(
-            {"valid": False, "detail": "Sertifikat hali berilmagan."},
-            status=404,
-        )
-
-    # Eng so'nggi tugallangan sessiya
-    latest_session = (
-        profile.user.test_sessions.filter(status="completed")
-        .order_by("-finished_at")
-        .first()
-    )
-
-    return Response(
-        {
-            "valid": True,
-            "full_name": profile.full_name,
-            "issued_at": profile.updated_at,
-            "iq_score": latest_session.iq_score if latest_session else None,
-            "percentile": latest_session.percentile if latest_session else None,
-            "plan": profile.plan,
-            "certificate_uuid": str(profile.certificate_uuid),
-        }
-    )

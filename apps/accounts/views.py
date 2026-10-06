@@ -11,8 +11,11 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from .models import Payment
 from .card_utils import detect_card_type, luhn_check
 from .serializers import (
-    RegisterSerializer, ProfileSerializer, UserSerializer,
-    PaymentSerializer, PaymentRequestSerializer,
+    RegisterSerializer,
+    ProfileSerializer,
+    UserSerializer,
+    PaymentSerializer,
+    PaymentRequestSerializer,
 )
 
 
@@ -22,6 +25,9 @@ PLAN_PRICES = {
 }
 
 
+# ═══════════════════════════════════════════
+# REGISTER
+# ═══════════════════════════════════════════
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def register(request):
@@ -39,12 +45,18 @@ def register(request):
     )
 
 
+# ═══════════════════════════════════════════
+# ME
+# ═══════════════════════════════════════════
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def me(request):
     return Response(UserSerializer(request.user).data)
 
 
+# ═══════════════════════════════════════════
+# UPDATE PROFILE
+# ═══════════════════════════════════════════
 @api_view(["PATCH"])
 @permission_classes([IsAuthenticated])
 def update_profile(request):
@@ -55,12 +67,18 @@ def update_profile(request):
     return Response(serializer.data)
 
 
+# ═══════════════════════════════════════════
+# PLAN PRICES
+# ═══════════════════════════════════════════
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def plan_prices(request):
     return Response(PLAN_PRICES)
 
 
+# ═══════════════════════════════════════════
+# PROCESS PAYMENT
+# ═══════════════════════════════════════════
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def process_payment(request):
@@ -72,17 +90,11 @@ def process_payment(request):
     card_number = data["card_number"]
 
     if not luhn_check(card_number):
-        return Response(
-            {"detail": "Karta raqami noto‘g‘ri."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+        return Response({"detail": "Karta raqami noto‘g‘ri."}, status=400)
 
     card_type = detect_card_type(card_number)
     if card_type == "unknown":
-        return Response(
-            {"detail": "Karta turi aniqlanmadi."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+        return Response({"detail": "Karta turi aniqlanmadi."}, status=400)
 
     plan_info = PLAN_PRICES[plan]
     digits = "".join(c for c in card_number if c.isdigit())
@@ -113,6 +125,9 @@ def process_payment(request):
     )
 
 
+# ═══════════════════════════════════════════
+# MY PAYMENTS
+# ═══════════════════════════════════════════
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def my_payments(request):

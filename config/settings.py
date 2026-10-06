@@ -21,30 +21,28 @@ SECRET_KEY = config("DJANGO_SECRET_KEY", default="dev-insecure-change-me")
 DEBUG = config("DEBUG", default=False, cast=bool)
 
 # ═══════════════════════════════════════════
-# ALLOWED HOSTS — CRITICAL
+# ALLOWED HOSTS
 # ═══════════════════════════════════════════
 ALLOWED_HOSTS = [
     h.strip()
     for h in config(
         "DJANGO_ALLOWED_HOSTS",
-        default="localhost,127.0.0.1,.up.railway.app,healthcheck.railway.app,.onrender.com",
+        default="localhost,127.0.0.1,.up.railway.app,healthcheck.railway.app",
     ).split(",")
     if h.strip()
 ]
 
-# Auto-add Railway public domain (if available)
 if not DEBUG:
     railway_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
     if railway_domain and railway_domain not in ALLOWED_HOSTS:
         ALLOWED_HOSTS.append(railway_domain)
 
-# Auto-add Railway private domain
-railway_private = os.environ.get("RAILWAY_PRIVATE_DOMAIN")
-if railway_private and railway_private not in ALLOWED_HOSTS:
-    ALLOWED_HOSTS.append(railway_private)
+    railway_private = os.environ.get("RAILWAY_PRIVATE_DOMAIN")
+    if railway_private and railway_private not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(railway_private)
 
 # ═══════════════════════════════════════════
-# APPLICATIONS
+# APPLICATIONS — faqat kerak bo'lganlar
 # ═══════════════════════════════════════════
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -63,12 +61,12 @@ INSTALLED_APPS = [
 ]
 
 # ═══════════════════════════════════════════
-# MIDDLEWARE — ORDER MATTERS
+# MIDDLEWARE — allauth olib tashlandi
 # ═══════════════════════════════════════════
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",       # MUST be first
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",  # After security
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -108,7 +106,6 @@ DATABASES = {
     "default": dj_database_url.config(
         default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
         conn_max_age=600,
-        conn_health_checks=True,
     )
 }
 
@@ -141,7 +138,6 @@ STATIC_DIR = BASE_DIR / "static"
 if STATIC_DIR.exists():
     STATICFILES_DIRS.append(STATIC_DIR)
 
-# Storage backend
 if DEBUG:
     STORAGES = {
         "default": {
@@ -182,23 +178,20 @@ SIMPLE_JWT = {
 }
 
 # ═══════════════════════════════════════════
-# CORS — AUTO CLEAN
+# CORS
 # ═══════════════════════════════════════════
 CORS_ALLOWED_ORIGINS = []
 _raw_cors = config(
     "CORS_ALLOWED_ORIGINS",
-    default=(
-        "http://localhost:5173,"
-        "http://127.0.0.1:5173"
-    ),
+    default="http://localhost:5173,http://127.0.0.1:5173",
 )
 for origin in _raw_cors.split(","):
-    origin = origin.strip().rstrip("/")   # Auto-remove trailing slash
+    origin = origin.strip().rstrip("/")
     if origin:
         CORS_ALLOWED_ORIGINS.append(origin)
 
 # ═══════════════════════════════════════════
-# CSRF — AUTO CLEAN
+# CSRF
 # ═══════════════════════════════════════════
 CSRF_TRUSTED_ORIGINS = []
 _raw_csrf = config(
@@ -226,7 +219,7 @@ CORS_ALLOW_CREDENTIALS = True
 # ═══════════════════════════════════════════
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-    SECURE_SSL_REDIRECT = False        # Railway handles HTTPS
+    SECURE_SSL_REDIRECT = False
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_HSTS_SECONDS = 31536000

@@ -2,13 +2,64 @@ import uuid
 from django.db import models
 
 
+class TestCategory(models.Model):
+    """
+    Test turi: IQ, Matematika, Ingliz tili, Ona tili.
+    """
+    CATEGORY_CHOICES = [
+        ("iq", "IQ Test"),
+        ("math", "Matematika"),
+        ("english", "Ingliz tili"),
+        ("native", "Ona tili va Adabiyot"),
+    ]
+
+    code = models.CharField(max_length=20, choices=CATEGORY_CHOICES, unique=True)
+    name_uz = models.CharField(max_length=100)
+    name_en = models.CharField(max_length=100)
+    name_ru = models.CharField(max_length=100)
+    description_uz = models.TextField(blank=True)
+    icon = models.CharField(max_length=50, blank=True, default="Brain")
+    color = models.CharField(max_length=30, blank=True, default="indigo")
+    duration_seconds = models.PositiveIntegerField(default=40 * 60)
+    is_active = models.BooleanField(default=True)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order"]
+        verbose_name = "Test kategoriyasi"
+        verbose_name_plural = "Test kategoriyalari"
+
+    def __str__(self):
+        return self.name_uz
+
+
 class Question(models.Model):
     CATEGORY_CHOICES = [
         ("pattern", "Pattern Recognition & Matrix"),
         ("spatial", "Spatial Visualization"),
         ("numerical", "Numerical Sequences"),
         ("abstract", "Abstract Reasoning"),
+        ("algebra", "Algebra"),
+        ("geometry", "Geometry"),
+        ("arithmetic", "Arithmetic"),
+        ("logic", "Logic"),
+        ("grammar", "Grammar"),
+        ("vocabulary", "Vocabulary"),
+        ("reading", "Reading"),
+        ("ortography", "Ortografiya"),
+        ("literature", "Adabiyot"),
+        ("grammar_uz", "Grammatika"),
+        ("analysis", "Tahlil"),
     ]
+
+    # Qaysi test turiga tegishli
+    test_type = models.ForeignKey(
+        TestCategory,
+        on_delete=models.CASCADE,
+        related_name="questions",
+        null=True,
+        blank=True,
+    )
 
     question_text = models.TextField()
     explanation = models.TextField(blank=True)
@@ -18,7 +69,7 @@ class Question(models.Model):
     option_d = models.CharField(max_length=255)
 
     image_url = models.TextField(blank=True)
-    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
+    category = models.CharField(max_length=30, choices=CATEGORY_CHOICES)
     difficulty = models.FloatField(default=1.0)
     correct_index = models.PositiveSmallIntegerField()
     order = models.PositiveIntegerField(default=0)
@@ -51,6 +102,15 @@ class TestSession(models.Model):
         on_delete=models.SET_NULL,
         related_name="test_sessions",
     )
+
+    test_category = models.ForeignKey(
+        TestCategory,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="sessions",
+    )
+
     language = models.CharField(max_length=2, default="uz")
     status = models.CharField(
         max_length=15, choices=STATUS_CHOICES, default="in_progress"
@@ -65,6 +125,11 @@ class TestSession(models.Model):
     iq_score = models.PositiveSmallIntegerField(null=True, blank=True)
     percentile = models.FloatField(null=True, blank=True)
     category_breakdown = models.JSONField(default=dict, blank=True)
+
+    correct_count = models.PositiveIntegerField(default=0)
+    wrong_count = models.PositiveIntegerField(default=0)
+    unanswered_count = models.PositiveIntegerField(default=0)
+    total_questions = models.PositiveIntegerField(default=0)
 
     class Meta:
         ordering = ["-started_at"]

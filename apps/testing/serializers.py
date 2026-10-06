@@ -1,5 +1,14 @@
 from rest_framework import serializers
-from .models import Question, TestSession
+from .models import Question, TestSession, TestCategory
+
+
+class TestCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TestCategory
+        fields = [
+            "id", "code", "name_uz", "name_en", "name_ru",
+            "description_uz", "icon", "color", "duration_seconds", "order",
+        ]
 
 
 class LocalizedQuestionSerializer(serializers.ModelSerializer):
@@ -28,10 +37,15 @@ class SubmitTestSerializer(serializers.Serializer):
 
 
 class SessionResultSerializer(serializers.ModelSerializer):
+    test_category = TestCategorySerializer(read_only=True)
+
     class Meta:
         model = TestSession
         fields = [
-            "uuid", "status", "language", "started_at", "finished_at",
-            "duration_seconds", "raw_score", "accuracy",
-            "iq_score", "percentile", "category_breakdown",
+            "uuid", "status", "language", "test_category",
+            "started_at", "finished_at", "duration_seconds",
+            "raw_score", "accuracy", "iq_score", "percentile",
+            "category_breakdown",
+            "correct_count", "wrong_count", "unanswered_count",
+            "total_questions",
         ]

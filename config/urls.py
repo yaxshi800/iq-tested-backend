@@ -12,23 +12,12 @@ def health_check(request):
 
 
 urlpatterns = [
-    # Admin
     path("admin/", admin.site.urls),
-
-    # Health check
     path("api/v1/health/", health_check, name="health"),
 
-    # Test endpoints
     path("api/v1/test/", include("apps.testing.urls")),
-
-    # ⭐ Auth endpoints — BU YETISHMAYOTGAN EDI
     path("api/v1/auth/", include("apps.accounts.urls")),
 
-    # JWT token endpoints
     path("api/v1/auth/token/", TokenObtainPairView.as_view(), name="token"),
-    path(
-        "api/v1/auth/token/refresh/",
-        TokenRefreshView.as_view(),
-        name="token-refresh",
-    ),
+    path("api/v1/auth/token/refresh/", TokenRefreshView.as_view(), name="token-refresh"),
 ]
