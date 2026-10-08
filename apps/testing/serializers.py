@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Question, TestSession, TestCategory
+from .models import Question, TestSession, TestCategory, ImageQuestion
 
 
 class TestCategorySerializer(serializers.ModelSerializer):
@@ -49,3 +49,27 @@ class SessionResultSerializer(serializers.ModelSerializer):
             "correct_count", "wrong_count", "unanswered_count",
             "total_questions",
         ]
+
+
+# ═══════════════════════════════════════════
+# IMAGE QUESTION SERIALIZERS
+# ═══════════════════════════════════════════
+class ImageQuestionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ImageQuestion
+        fields = [
+            "id", "question_text", "hint_text", "images",
+            "difficulty", "order",
+        ]
+
+
+class ImageAnswerInputSerializer(serializers.Serializer):
+    question_id = serializers.IntegerField()
+    selected_index = serializers.IntegerField(
+        min_value=0, required=False, allow_null=True
+    )
+    time_spent = serializers.IntegerField(min_value=0, default=0)
+
+
+class SubmitImageTestSerializer(serializers.Serializer):
+    answers = ImageAnswerInputSerializer(many=True)

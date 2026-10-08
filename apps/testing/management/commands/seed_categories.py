@@ -47,6 +47,17 @@ class Command(BaseCommand):
                 "color": "amber",
                 "order": 4,
             },
+            # ⭐ RUS TILI
+            {
+                "code": "russian",
+                "name_uz": "Rus tili",
+                "name_en": "Russian",
+                "name_ru": "Русский язык",
+                "description_uz": "Grammatika, lug'at, o'qish",
+                "icon": "BookMarked",
+                "color": "cyan",
+                "order": 5,
+            },
         ]
 
         for cat_data in categories:

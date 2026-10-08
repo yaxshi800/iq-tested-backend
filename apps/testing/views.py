@@ -7,104 +7,37 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Question, TestSession, TestCategory
+from .models import Question, TestSession, TestCategory, ImageQuestion
 from .serializers import (
     LocalizedQuestionSerializer,
     SubmitTestSerializer,
     SessionResultSerializer,
     TestCategorySerializer,
+    ImageQuestionSerializer,
+    SubmitImageTestSerializer,
 )
 from .scoring import compute_result
 
 
 # ═══════════════════════════════════════════
-# TEST CATEGORIES — 4 ta test turi
+# TEST CATEGORIES
 # ═══════════════════════════════════════════
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def test_categories(request):
-    """Barcha test turlarini olish."""
     cats = TestCategory.objects.filter(is_active=True)
     serializer = TestCategorySerializer(cats, many=True)
     return Response(serializer.data)
 
 
 # ═══════════════════════════════════════════
-# TEST START
+# TEST START (oddiy testlar)
 # ═══════════════════════════════════════════
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def start_test(request):
     category_code = request.data.get("category", "iq")
 
-    # ═══════════════════════════════════════════
-    # ARALASH TEST
-    # ═══════════════════════════════════════════
-    if category_code == "mixed":
-        import random
-
-        # Har bir turdan nechta savol olamiz
-        per_category = {
-            "iq": 10,
-            "math": 10,
-            "english": 10,
-            "native": 10,
-        }
-
-        all_questions = []
-        for cat_code, count in per_category.items():
-            try:
-                test_cat = TestCategory.objects.get(code=cat_code, is_active=True)
-                qs = list(
-                    Question.objects.filter(test_type=test_cat, is_active=True)
-                )
-                random.shuffle(qs)
-                all_questions.extend(qs[:count])
-            except TestCategory.DoesNotExist:
-                continue
-
-        # Aralashtirish
-        random.shuffle(all_questions)
-
-        if not all_questions:
-            return Response(
-                {"detail": "Aralash test uchun savollar topilmadi."},
-                status=404,
-            )
-
-        # Aralash test uchun maxsus kategoriya (vaqtincha)
-        session = TestSession.objects.create(
-            language="uz",
-            user=request.user if request.user.is_authenticated else None,
-            test_category=None,  # Aralash — maxsus kategoriya yo'q
-        )
-
-        serializer = LocalizedQuestionSerializer(all_questions, many=True)
-
-        return Response(
-            {
-                "session_uuid": str(session.uuid),
-                "language": "uz",
-                "category": {
-                    "code": "mixed",
-                    "name_uz": "Aralash Test",
-                    "name_en": "Mixed Test",
-                    "name_ru": "Смешанный тест",
-                    "description_uz": "Barcha turdagi aralash savollar",
-                    "icon": "Sparkles",
-                    "color": "rose",
-                    "duration_seconds": 40 * 60,
-                },
-                "duration_seconds": 40 * 60,
-                "total_questions": len(serializer.data),
-                "questions": serializer.data,
-            },
-            status=status.HTTP_201_CREATED,
-        )
-
-    # ═══════════════════════════════════════════
-    # ODDIY TEST (IQ, Matematika, Ingliz, Ona tili)
-    # ═══════════════════════════════════════════
     try:
         test_cat = TestCategory.objects.get(code=category_code, is_active=True)
     except TestCategory.DoesNotExist:
@@ -143,8 +76,9 @@ def start_test(request):
         status=status.HTTP_201_CREATED,
     )
 
+
 # ═══════════════════════════════════════════
-# TEST SUBMIT
+# TEST SUBMIT (oddiy testlar)
 # ═══════════════════════════════════════════
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -194,3 +128,96 @@ def get_results(request, uuid):
     except TestSession.DoesNotExist:
         return Response({"detail": "Session not found."}, status=404)
     return Response(SessionResultSerializer(session).data)
+
+
+# ═══════════════════════════════════════════
+# IMAGE TEST — START
+# ═══════════════════════════════════════════
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def start_image_test(request):
+    """
+    Rasm savollari testini boshlash.
+    Maksimum 20 ta savol qaytaradi.
+    """
+    questions = ImageQuestion.objects.filter(is_active=True).order_by("order")[:20]
+
+    if not questions.exists():
+        return Response(
+            {"detail": "Rasm savollari topilmadi. Iltimos, admin panelda qo'shing."},
+            status=404,
+        )
+
+    serializer = ImageQuestionSerializer(questions, many=True)
+
+    return Response(
+        {
+            "language": "uz",
+            "total_questions": len(serializer.data),
+            "questions": serializer.data,
+        },
+        status=status.HTTP_200_OK,
+    )
+
+
+# ═══════════════════════════════════════════
+# IMAGE TEST — SUBMIT
+# ═══════════════════════════════════════════
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def submit_image_test(request):
+    """
+    Rasm testi javoblarini qabul qilish va natijani qaytarish.
+    """
+    serializer = SubmitImageTestSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    answers = serializer.validated_data["answers"]
+
+    questions = {q.id: q for q in ImageQuestion.objects.filter(is_active=True)}
+
+    correct = 0
+    wrong = 0
+    unanswered = 0
+    details = []
+
+    for ans in answers:
+        q = questions.get(ans["question_id"])
+        if not q:
+            continue
+
+        selected = ans.get("selected_index")
+
+        if selected is None:
+            unanswered += 1
+            details.append({
+                "question_id": q.id,
+                "selected_index": None,
+                "correct_index": q.correct_index,
+                "is_correct": False,
+            })
+            continue
+
+        is_correct = selected == q.correct_index
+        if is_correct:
+            correct += 1
+        else:
+            wrong += 1
+
+        details.append({
+            "question_id": q.id,
+            "selected_index": selected,
+            "correct_index": q.correct_index,
+            "is_correct": is_correct,
+        })
+
+    total = len(answers)
+    percentage = round((correct / total * 100) if total else 0, 1)
+
+    return Response({
+        "total_questions": total,
+        "correct_count": correct,
+        "wrong_count": wrong,
+        "unanswered_count": unanswered,
+        "percentage": percentage,
+        "details": details,
+    }, status=status.HTTP_200_OK)

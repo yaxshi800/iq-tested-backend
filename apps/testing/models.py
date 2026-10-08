@@ -3,9 +3,6 @@ from django.db import models
 
 
 class TestCategory(models.Model):
-    """
-    Test turi: IQ, Matematika, Ingliz tili, Ona tili.
-    """
     CATEGORY_CHOICES = [
         ("iq", "IQ Test"),
         ("math", "Matematika"),
@@ -52,7 +49,6 @@ class Question(models.Model):
         ("analysis", "Tahlil"),
     ]
 
-    # Qaysi test turiga tegishli
     test_type = models.ForeignKey(
         TestCategory,
         on_delete=models.CASCADE,
@@ -149,3 +145,40 @@ class UserAnswer(models.Model):
 
     class Meta:
         unique_together = ("session", "question")
+
+
+# ═══════════════════════════════════════════
+# IMAGE QUESTION — Bolalar uchun rasm savoli
+# ═══════════════════════════════════════════
+class ImageQuestion(models.Model):
+    """
+    Bolalar uchun rasm savoli:
+    - 30+ rasm (emoji yoki URL)
+    - Bittasi noto'g'ri
+    - Foydalanuvchi o'sha rasmni bosadi
+    """
+    question_text = models.TextField(
+        blank=True,
+        default="Boshqalarga o'xshamagan rasmni toping",
+    )
+    hint_text = models.CharField(max_length=200, blank=True)
+
+    # Rasmlar ro'yxati (emoji yoki URL)
+    images = models.JSONField(default=list)
+
+    # To'g'ri javob indeksi
+    correct_index = models.PositiveIntegerField()
+
+    explanation = models.TextField(blank=True)
+    difficulty = models.FloatField(default=1.0)
+    order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+
+    class Meta:
+        ordering = ["order", "id"]
+        verbose_name = "Rasm savoli"
+        verbose_name_plural = "Rasm savollari"
+
+    def __str__(self):
+        return f"Image Q{self.order}: {len(self.images)} images"
