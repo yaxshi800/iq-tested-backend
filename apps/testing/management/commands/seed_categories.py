@@ -6,15 +6,18 @@ class Command(BaseCommand):
     help = "Seed test categories"
 
     def handle(self, *args, **options):
+        duration = 30 * 60  # 30 daqiqa
+
         categories = [
             {
                 "code": "iq",
                 "name_uz": "IQ Test",
                 "name_en": "IQ Test",
                 "name_ru": "IQ Тест",
-                "description_uz": "40 savoldan iborat standartlashtirilgan IQ testi",
+                "description_uz": "30 savoldan iborat standartlashtirilgan IQ testi",
                 "icon": "Brain",
                 "color": "indigo",
+                "duration_seconds": duration,
                 "order": 1,
             },
             {
@@ -25,6 +28,7 @@ class Command(BaseCommand):
                 "description_uz": "Algebra, geometriya, arifmetika",
                 "icon": "Hash",
                 "color": "emerald",
+                "duration_seconds": duration,
                 "order": 2,
             },
             {
@@ -35,6 +39,7 @@ class Command(BaseCommand):
                 "description_uz": "Grammar, vocabulary, reading",
                 "icon": "BookOpen",
                 "color": "violet",
+                "duration_seconds": duration,
                 "order": 3,
             },
             {
@@ -45,9 +50,9 @@ class Command(BaseCommand):
                 "description_uz": "O'zbek tili va adabiyoti",
                 "icon": "Languages",
                 "color": "amber",
+                "duration_seconds": duration,
                 "order": 4,
             },
-            # ⭐ RUS TILI
             {
                 "code": "russian",
                 "name_uz": "Rus tili",
@@ -56,7 +61,20 @@ class Command(BaseCommand):
                 "description_uz": "Grammatika, lug'at, o'qish",
                 "icon": "BookMarked",
                 "color": "cyan",
+                "duration_seconds": duration,
                 "order": 5,
+            },
+            # ⭐ O'QITUVCHILAR UCHUN
+            {
+                "code": "teacher",
+                "name_uz": "O'qituvchilar uchun",
+                "name_en": "For Teachers",
+                "name_ru": "Для учителей",
+                "description_uz": "Pedagogika, psixologiya, metodika",
+                "icon": "GraduationCap",
+                "color": "rose",
+                "duration_seconds": duration,
+                "order": 6,
             },
         ]
 

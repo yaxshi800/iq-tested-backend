@@ -8,4 +8,8 @@ urlpatterns = [
     path("plans/", views.plan_prices, name="plan-prices"),
     path("payment/", views.process_payment, name="process-payment"),
     path("payments/", views.my_payments, name="my-payments"),
+
+    # Gamification
+    path("achievements/", views.my_achievements, name="achievements"),
+    path("streak/", views.my_streak, name="streak"),
 ]

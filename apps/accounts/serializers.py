@@ -1,7 +1,10 @@
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
-from .models import Profile, Payment
+from .models import (
+    Profile, Payment, TeacherProfile, Classroom, ClassMembership,
+    Achievement, UserAchievement, DailyStreak,
+)
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -63,9 +66,7 @@ class PaymentSerializer(serializers.ModelSerializer):
             "card_type", "card_last4", "card_holder",
             "transaction_id", "status", "created_at", "completed_at",
         ]
-        read_only_fields = [
-            "transaction_id", "status", "created_at", "completed_at",
-        ]
+        read_only_fields = ["transaction_id", "status", "created_at", "completed_at"]
 
 
 class PaymentRequestSerializer(serializers.Serializer):
@@ -74,3 +75,48 @@ class PaymentRequestSerializer(serializers.Serializer):
     card_holder = serializers.CharField(max_length=100)
     card_expiry = serializers.CharField(max_length=7)
     card_cvv = serializers.CharField(min_length=3, max_length=4)
+
+
+# Teacher
+class TeacherProfileSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source="user.username", read_only=True)
+    email = serializers.CharField(source="user.email", read_only=True)
+
+    class Meta:
+        model = TeacherProfile
+        fields = ["username", "email", "school_name", "subject", "phone", "is_verified", "created_at"]
+        read_only_fields = ["is_verified", "created_at"]
+
+
+class ClassroomSerializer(serializers.ModelSerializer):
+    teacher_name = serializers.CharField(source="teacher.username", read_only=True)
+    members_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Classroom
+        fields = ["id", "name", "description", "invite_code", "grade", "is_active", "created_at", "teacher_name", "members_count"]
+        read_only_fields = ["invite_code", "created_at"]
+
+    def get_members_count(self, obj):
+        return obj.members.count()
+
+
+# Gamification
+class AchievementSerializer(serializers.ModelSerializer):
+    earned = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Achievement
+        fields = ["id", "code", "name_uz", "description_uz", "icon", "color", "points", "order", "earned"]
+
+    def get_earned(self, obj):
+        user = self.context.get("user")
+        if not user or not user.is_authenticated:
+            return False
+        return UserAchievement.objects.filter(user=user, achievement=obj).exists()
+
+
+class DailyStreakSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DailyStreak
+        fields = ["current_streak", "longest_streak", "last_activity", "total_points"]

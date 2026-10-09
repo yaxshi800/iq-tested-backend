@@ -17,7 +17,11 @@ class LocalizedQuestionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Question
-        fields = ["id", "text", "options", "image_url", "category", "difficulty", "order"]
+        fields = [
+            "id", "text", "options", "image_url",
+            "videos",                       # ⭐ VIDEOLAR
+            "category", "difficulty", "order",
+        ]
 
     def get_options(self, obj):
         return [obj.option_a, obj.option_b, obj.option_c, obj.option_d]
@@ -51,9 +55,6 @@ class SessionResultSerializer(serializers.ModelSerializer):
         ]
 
 
-# ═══════════════════════════════════════════
-# IMAGE QUESTION SERIALIZERS
-# ═══════════════════════════════════════════
 class ImageQuestionSerializer(serializers.ModelSerializer):
     class Meta:
         model = ImageQuestion

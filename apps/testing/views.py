@@ -1,10 +1,9 @@
 from uuid import uuid4
-
+from datetime import date, timedelta
 from django.utils.timezone import now
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from .models import Question, TestSession, TestCategory, ImageQuestion
@@ -19,20 +18,71 @@ from .serializers import (
 from .scoring import compute_result
 
 
-# ═══════════════════════════════════════════
-# TEST CATEGORIES
-# ═══════════════════════════════════════════
+def update_streak_and_achievements(user, session):
+    """Test tugagandan keyin streak va achievements yangilash"""
+    if not user or not user.is_authenticated:
+        return []
+
+    from apps.accounts.models import Achievement, UserAchievement, DailyStreak
+
+    streak, _ = DailyStreak.objects.get_or_create(user=user)
+    today = date.today()
+
+    # Streak mantiqiy
+    if streak.last_activity == today:
+        pass
+    elif streak.last_activity == today - timedelta(days=1):
+        streak.current_streak += 1
+        streak.longest_streak = max(streak.longest_streak, streak.current_streak)
+    else:
+        streak.current_streak = 1
+
+    streak.last_activity = today
+
+    earned = []
+
+    # 1. Birinchi test
+    ach = Achievement.objects.filter(code="first_test").first()
+    if ach and not UserAchievement.objects.filter(user=user, achievement=ach).exists():
+        UserAchievement.objects.create(user=user, achievement=ach)
+        streak.total_points += ach.points
+        earned.append(ach.name_uz)
+
+    # 2. Mukammal natija
+    if session.accuracy == 1.0:
+        ach = Achievement.objects.filter(code="perfect_score").first()
+        if ach and not UserAchievement.objects.filter(user=user, achievement=ach).exists():
+            UserAchievement.objects.create(user=user, achievement=ach)
+            streak.total_points += ach.points
+            earned.append(ach.name_uz)
+
+    # 3. IQ ustasi
+    if session.iq_score and session.iq_score >= 120:
+        ach = Achievement.objects.filter(code="iq_master").first()
+        if ach and not UserAchievement.objects.filter(user=user, achievement=ach).exists():
+            UserAchievement.objects.create(user=user, achievement=ach)
+            streak.total_points += ach.points
+            earned.append(ach.name_uz)
+
+    # 4. 7 kunlik streak
+    if streak.current_streak >= 7:
+        ach = Achievement.objects.filter(code="seven_day_streak").first()
+        if ach and not UserAchievement.objects.filter(user=user, achievement=ach).exists():
+            UserAchievement.objects.create(user=user, achievement=ach)
+            streak.total_points += ach.points
+            earned.append(ach.name_uz)
+
+    streak.save()
+    return earned
+
+
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def test_categories(request):
     cats = TestCategory.objects.filter(is_active=True)
-    serializer = TestCategorySerializer(cats, many=True)
-    return Response(serializer.data)
+    return Response(TestCategorySerializer(cats, many=True).data)
 
 
-# ═══════════════════════════════════════════
-# TEST START (oddiy testlar)
-# ═══════════════════════════════════════════
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def start_test(request):
@@ -46,9 +96,12 @@ def start_test(request):
             status=404,
         )
 
+    # Har bir test uchun 30 savol, faqat "teacher" uchun 20
+    limit = 20 if category_code == "teacher" else 30
+
     questions = Question.objects.filter(
         test_type=test_cat, is_active=True
-    ).order_by("order")[:40]
+    ).order_by("order")[:limit]
 
     if not questions.exists():
         return Response(
@@ -77,9 +130,6 @@ def start_test(request):
     )
 
 
-# ═══════════════════════════════════════════
-# TEST SUBMIT (oddiy testlar)
-# ═══════════════════════════════════════════
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def submit_test(request):
@@ -111,15 +161,16 @@ def submit_test(request):
     session.finished_at = now()
     session.save()
 
+    # Streak va achievements
+    earned = update_streak_and_achievements(request.user, session)
+
     return Response({
         "message": "Test completed successfully.",
         "result": SessionResultSerializer(session).data,
+        "earned_achievements": earned or [],
     })
 
 
-# ═══════════════════════════════════════════
-# GET RESULTS
-# ═══════════════════════════════════════════
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def get_results(request, uuid):
@@ -131,20 +182,16 @@ def get_results(request, uuid):
 
 
 # ═══════════════════════════════════════════
-# IMAGE TEST — START
+# IMAGE TEST
 # ═══════════════════════════════════════════
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def start_image_test(request):
-    """
-    Rasm savollari testini boshlash.
-    Maksimum 20 ta savol qaytaradi.
-    """
     questions = ImageQuestion.objects.filter(is_active=True).order_by("order")[:20]
 
     if not questions.exists():
         return Response(
-            {"detail": "Rasm savollari topilmadi. Iltimos, admin panelda qo'shing."},
+            {"detail": "Rasm savollari topilmadi."},
             status=404,
         )
 
@@ -160,15 +207,9 @@ def start_image_test(request):
     )
 
 
-# ═══════════════════════════════════════════
-# IMAGE TEST — SUBMIT
-# ═══════════════════════════════════════════
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def submit_image_test(request):
-    """
-    Rasm testi javoblarini qabul qilish va natijani qaytarish.
-    """
     serializer = SubmitImageTestSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     answers = serializer.validated_data["answers"]
@@ -186,7 +227,6 @@ def submit_image_test(request):
             continue
 
         selected = ans.get("selected_index")
-
         if selected is None:
             unanswered += 1
             details.append({
@@ -220,4 +260,4 @@ def submit_image_test(request):
         "unanswered_count": unanswered,
         "percentage": percentage,
         "details": details,
-    }, status=status.HTTP_200_OK)
+    }, status=status.HTTP_200_OK) 

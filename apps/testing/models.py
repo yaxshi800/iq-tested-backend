@@ -8,6 +8,7 @@ class TestCategory(models.Model):
         ("math", "Matematika"),
         ("english", "Ingliz tili"),
         ("native", "Ona tili va Adabiyot"),
+        ("russian", "Rus tili"),
     ]
 
     code = models.CharField(max_length=20, choices=CATEGORY_CHOICES, unique=True)
@@ -23,8 +24,6 @@ class TestCategory(models.Model):
 
     class Meta:
         ordering = ["order"]
-        verbose_name = "Test kategoriyasi"
-        verbose_name_plural = "Test kategoriyalari"
 
     def __str__(self):
         return self.name_uz
@@ -32,7 +31,7 @@ class TestCategory(models.Model):
 
 class Question(models.Model):
     CATEGORY_CHOICES = [
-        ("pattern", "Pattern Recognition & Matrix"),
+        ("pattern", "Pattern Recognition"),
         ("spatial", "Spatial Visualization"),
         ("numerical", "Numerical Sequences"),
         ("abstract", "Abstract Reasoning"),
@@ -47,6 +46,9 @@ class Question(models.Model):
         ("literature", "Adabiyot"),
         ("grammar_uz", "Grammatika"),
         ("analysis", "Tahlil"),
+        ("grammar_ru", "Грамматика"),
+        ("vocabulary_ru", "Лексика"),
+        ("reading_ru", "Чтение"),
     ]
 
     test_type = models.ForeignKey(
@@ -65,6 +67,14 @@ class Question(models.Model):
     option_d = models.CharField(max_length=255)
 
     image_url = models.TextField(blank=True)
+
+    # ⭐ VIDEOLAR — 3 tadan
+    videos = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Video ro'yxati: [{title, url, thumbnail, duration}]",
+    )
+
     category = models.CharField(max_length=30, choices=CATEGORY_CHOICES)
     difficulty = models.FloatField(default=1.0)
     correct_index = models.PositiveSmallIntegerField()
@@ -92,25 +102,15 @@ class TestSession(models.Model):
 
     uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     user = models.ForeignKey(
-        "auth.User",
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
+        "auth.User", null=True, blank=True, on_delete=models.SET_NULL,
         related_name="test_sessions",
     )
-
     test_category = models.ForeignKey(
-        TestCategory,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
+        TestCategory, on_delete=models.SET_NULL, null=True, blank=True,
         related_name="sessions",
     )
-
     language = models.CharField(max_length=2, default="uz")
-    status = models.CharField(
-        max_length=15, choices=STATUS_CHOICES, default="in_progress"
-    )
+    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default="in_progress")
 
     started_at = models.DateTimeField(auto_now_add=True)
     finished_at = models.DateTimeField(null=True, blank=True)
@@ -130,14 +130,9 @@ class TestSession(models.Model):
     class Meta:
         ordering = ["-started_at"]
 
-    def __str__(self):
-        return f"Session {self.uuid} ({self.status})"
-
 
 class UserAnswer(models.Model):
-    session = models.ForeignKey(
-        TestSession, related_name="answers", on_delete=models.CASCADE
-    )
+    session = models.ForeignKey(TestSession, related_name="answers", on_delete=models.CASCADE)
     question = models.ForeignKey(Question, on_delete=models.PROTECT)
     selected_index = models.PositiveSmallIntegerField(null=True, blank=True)
     time_spent = models.PositiveIntegerField(default=0)
@@ -147,28 +142,11 @@ class UserAnswer(models.Model):
         unique_together = ("session", "question")
 
 
-# ═══════════════════════════════════════════
-# IMAGE QUESTION — Bolalar uchun rasm savoli
-# ═══════════════════════════════════════════
 class ImageQuestion(models.Model):
-    """
-    Bolalar uchun rasm savoli:
-    - 30+ rasm (emoji yoki URL)
-    - Bittasi noto'g'ri
-    - Foydalanuvchi o'sha rasmni bosadi
-    """
-    question_text = models.TextField(
-        blank=True,
-        default="Boshqalarga o'xshamagan rasmni toping",
-    )
+    question_text = models.TextField(blank=True, default="Boshqalarga o'xshamagan rasmni toping")
     hint_text = models.CharField(max_length=200, blank=True)
-
-    # Rasmlar ro'yxati (emoji yoki URL)
     images = models.JSONField(default=list)
-
-    # To'g'ri javob indeksi
     correct_index = models.PositiveIntegerField()
-
     explanation = models.TextField(blank=True)
     difficulty = models.FloatField(default=1.0)
     order = models.PositiveIntegerField(default=0)
@@ -177,8 +155,6 @@ class ImageQuestion(models.Model):
 
     class Meta:
         ordering = ["order", "id"]
-        verbose_name = "Rasm savoli"
-        verbose_name_plural = "Rasm savollari"
 
     def __str__(self):
-        return f"Image Q{self.order}: {len(self.images)} images"
+        return f"Image Q{self.order}"

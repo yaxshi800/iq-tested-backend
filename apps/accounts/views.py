@@ -1,21 +1,19 @@
 import uuid as uuid_lib
-
 from django.conf import settings
 from django.utils import timezone
+from django.contrib.auth.models import User
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import Payment
+from .models import Payment, Achievement, UserAchievement, DailyStreak
 from .card_utils import detect_card_type, luhn_check
 from .serializers import (
-    RegisterSerializer,
-    ProfileSerializer,
-    UserSerializer,
-    PaymentSerializer,
-    PaymentRequestSerializer,
+    RegisterSerializer, ProfileSerializer, UserSerializer,
+    PaymentSerializer, PaymentRequestSerializer,
+    AchievementSerializer, DailyStreakSerializer,
 )
 
 
@@ -25,9 +23,6 @@ PLAN_PRICES = {
 }
 
 
-# ═══════════════════════════════════════════
-# REGISTER
-# ═══════════════════════════════════════════
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def register(request):
@@ -36,27 +31,17 @@ def register(request):
     user = serializer.save()
     refresh = RefreshToken.for_user(user)
     return Response(
-        {
-            "user": UserSerializer(user).data,
-            "access": str(refresh.access_token),
-            "refresh": str(refresh),
-        },
+        {"user": UserSerializer(user).data, "access": str(refresh.access_token), "refresh": str(refresh)},
         status=status.HTTP_201_CREATED,
     )
 
 
-# ═══════════════════════════════════════════
-# ME
-# ═══════════════════════════════════════════
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def me(request):
     return Response(UserSerializer(request.user).data)
 
 
-# ═══════════════════════════════════════════
-# UPDATE PROFILE
-# ═══════════════════════════════════════════
 @api_view(["PATCH"])
 @permission_classes([IsAuthenticated])
 def update_profile(request):
@@ -67,18 +52,12 @@ def update_profile(request):
     return Response(serializer.data)
 
 
-# ═══════════════════════════════════════════
-# PLAN PRICES
-# ═══════════════════════════════════════════
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def plan_prices(request):
     return Response(PLAN_PRICES)
 
 
-# ═══════════════════════════════════════════
-# PROCESS PAYMENT
-# ═══════════════════════════════════════════
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def process_payment(request):
@@ -90,7 +69,7 @@ def process_payment(request):
     card_number = data["card_number"]
 
     if not luhn_check(card_number):
-        return Response({"detail": "Karta raqami noto‘g‘ri."}, status=400)
+        return Response({"detail": "Karta raqami noto'g'ri."}, status=400)
 
     card_type = detect_card_type(card_number)
     if card_type == "unknown":
@@ -115,21 +94,33 @@ def process_payment(request):
 
     request.user.profile.activate_plan(plan, days=plan_info["days"])
 
-    return Response(
-        {
-            "message": f"{plan_info['label']} faollashtirildi!",
-            "payment": PaymentSerializer(payment).data,
-            "user": UserSerializer(request.user).data,
-        },
-        status=status.HTTP_201_CREATED,
-    )
+    return Response({
+        "message": f"{plan_info['label']} faollashtirildi!",
+        "payment": PaymentSerializer(payment).data,
+        "user": UserSerializer(request.user).data,
+    }, status=status.HTTP_201_CREATED)
 
 
-# ═══════════════════════════════════════════
-# MY PAYMENTS
-# ═══════════════════════════════════════════
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def my_payments(request):
     payments = Payment.objects.filter(user=request.user)
     return Response(PaymentSerializer(payments, many=True).data)
+
+
+# ═══════════════════════════════════════════
+# GAMIFICATION
+# ═══════════════════════════════════════════
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def my_achievements(request):
+    achievements = Achievement.objects.all()
+    serializer = AchievementSerializer(achievements, many=True, context={"user": request.user})
+    return Response(serializer.data)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def my_streak(request):
+    streak, _ = DailyStreak.objects.get_or_create(user=request.user)
+    return Response(DailyStreakSerializer(streak).data)
