@@ -42,7 +42,7 @@ if not DEBUG:
         ALLOWED_HOSTS.append(railway_private)
 
 # ═══════════════════════════════════════════
-# APPLICATIONS — faqat kerak bo'lganlar
+# APPLICATIONS
 # ═══════════════════════════════════════════
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -61,7 +61,7 @@ INSTALLED_APPS = [
 ]
 
 # ═══════════════════════════════════════════
-# MIDDLEWARE — allauth olib tashlandi
+# MIDDLEWARE
 # ═══════════════════════════════════════════
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
@@ -178,12 +178,16 @@ SIMPLE_JWT = {
 }
 
 # ═══════════════════════════════════════════
-# CORS
+# CORS — default'ga Railway URL qo'shildi
 # ═══════════════════════════════════════════
 CORS_ALLOWED_ORIGINS = []
 _raw_cors = config(
     "CORS_ALLOWED_ORIGINS",
-    default="http://localhost:5173,http://127.0.0.1:5173",
+    default=(
+        "http://localhost:5173,"
+        "http://127.0.0.1:5173,"
+        "https://iq-test-frontend-production-44cd.up.railway.app"
+    ),
 )
 for origin in _raw_cors.split(","):
     origin = origin.strip().rstrip("/")
@@ -191,12 +195,16 @@ for origin in _raw_cors.split(","):
         CORS_ALLOWED_ORIGINS.append(origin)
 
 # ═══════════════════════════════════════════
-# CSRF
+# CSRF — default'ga Railway URL qo'shildi
 # ═══════════════════════════════════════════
 CSRF_TRUSTED_ORIGINS = []
 _raw_csrf = config(
     "CSRF_TRUSTED_ORIGINS",
-    default="http://localhost:5173",
+    default=(
+        "http://localhost:5173,"
+        "https://iq-tested-backend-production.up.railway.app,"
+        "https://iq-test-frontend-production-44cd.up.railway.app"
+    ),
 )
 for origin in _raw_csrf.split(","):
     origin = origin.strip().rstrip("/")
